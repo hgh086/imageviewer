@@ -222,9 +222,9 @@ int main()
                     fScale = ((float)winHeight) / ((float)tex.height);
                     newHeight = winHeight;
                     newWidth = (int)(tex.width * fScale);
-                    Vector2 vvv = {(winWidth-newWidth)/2, (winHeight-newHeight)/2};
-                    DrawTextureEx(tex, vvv, 0, fScale, WHITE);
                 }
+                Vector2 vvv = {(winWidth-newWidth)/2, (winHeight-newHeight)/2};
+                DrawTextureEx(tex, vvv, 0, fScale, WHITE);
             } else {
                 DrawTexture(tex, (winWidth-tex.width)/2 + offsetx, (winHeight-tex.height)/2 + offsety, WHITE);
             }
