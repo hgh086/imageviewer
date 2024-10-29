@@ -1,0 +1,274 @@
+struct Texture {
+    u32 id;
+    i32 width;
+    i32 height;
+    i32 mipmaps;
+    i32 format;
+}
+
+struct FilePathList {
+    u32 capacity;
+    u32 count;
+    u8** paths;
+}
+
+struct Vector2 {
+    f32 x;
+    f32 y;
+}
+
+@extern(module, "kernel32") noreturn ExitProcess(u32 uExitCode);
+
+@extern(module, "msvcr120") u8* memset(u8* buff, u8 c, u64 n);
+@extern(module, "msvcr120") i32 memcpy_s(u8* dest, u64 size, u8* src, u64 count);
+@extern(module, "msvcr120") i32 strcat_s(u8* dest, i32 size,  u8* src);
+@extern(module, "msvcr120") i32 strcpy_s(u8* dest, i32 size,  u8* src);
+@extern(module, "msvcr120") i32 _itoa_s(i32 value, u8* buff, i32 size, i32 radix);
+@extern(module, "msvcr120") i32 _ultoa_s(u32 value, u8* buff, i32 size, i32 radix);
+@extern(module, "msvcr120") i32 _gcvt_s(u8* buff, i32 size, f64 value, i32 digits);
+@extern(module, "msvcr120") i32 puts(u8* str);
+
+@extern(module, "raylib") void InitWindow(i32 w, i32 h, u8* title);
+@extern(module, "raylib") i32 WindowShouldClose();
+@extern(module, "raylib") void BeginDrawing();
+@extern(module, "raylib") void EndDrawing();
+@extern(module, "raylib") void ClearBackground(u32 clr);
+@extern(module, "raylib") void DrawText(u8* txt, i32 x, i32 y, i32 fontsize, u32 clr);
+@extern(module, "raylib") void CloseWindow();
+@extern(module, "raylib") Texture LoadTexture(u8* txt);
+@extern(module, "raylib") void UnloadTexture(Texture tex);
+@extern(module, "raylib") void DrawTexture(Texture tex, i32 x, i32 y, u32 clr);
+@extern(module, "raylib") void DrawTextureEx(Texture tex, Vector2 position, f32 rotation, f32 scale, u32 clr);
+@extern(module, "raylib") FilePathList LoadDirectoryFilesEx(u8* basePath, u8* filter, bool scanSubdirs);
+@extern(module, "raylib") void UnloadDirectoryFiles(FilePathList files);
+@extern(module, "raylib") i32 GetKeyPressed();
+@extern(module, "raylib") void SetWindowState(u32 flags);
+@extern(module, "raylib") void SetTargetFPS(i32 fps);
+@extern(module, "raylib") void ClearWindowState(u32 flags);
+@extern(module, "raylib") void ToggleFullscreen();
+@extern(module, "raylib") void MaximizeWindow();
+@extern(module, "raylib") void RestoreWindow();
+@extern(module, "raylib") i32 GetScreenWidth();
+@extern(module, "raylib") i32 GetScreenHeight();
+@extern(module, "raylib") void SetTraceLogLevel(i32 logLevel);
+@extern(module, "raylib") f32 GetMouseWheelMove();
+@extern(module, "raylib") bool IsMouseButtonPressed(i32 button);
+@extern(module, "raylib") bool IsMouseButtonDown(i32 button);
+@extern(module, "raylib") bool IsMouseButtonReleased(i32 button);
+@extern(module, "raylib") bool IsMouseButtonUp(i32 button);
+@extern(module, "raylib") i32 GetMouseX();
+@extern(module, "raylib") i32 GetMouseY();
+@extern(module, "raylib") void SetMouseCursor(i32 cursor);
+@extern(module, "raylib") f64 GetTime();
+
+//@extern(module, "tinyfd") u8* tinyfd_selectFolderDialog(u8* title, u8* dpath);
+@extern(module, "tinyfd") u16* tinyfd_selectFolderDialogW(u16* title, u16* dpath);
+@extern(module, "tinyfd") u8*  tinyfd_utf16toMbcs(u16* wtxt);
+@extern(module, "tinyfd") u16* tinyfd_mbcsTo16(u8* txt);
+
+u8[1024] MessageBuffer;
+u8[1024] ImagePath;
+u32 clrWhite = 0xffffffff;
+u32 clrRed = 0xff0000ff;
+u32 clrBlack = 0xff000000;
+Texture tex = Texture();
+FilePathList fpl = FilePathList();
+i32 currentPos = 0;
+i32 winWidth = 1920;
+i32 winHeight = 1080;
+i32 offsetx = 0;
+i32 offsety = 0;
+i32 mmovex = 0;
+i32 mmovey = 0;
+
+void printInt(u8* memo, i32 val) {
+    memset(MessageBuffer.ptr, 0, 1024);
+    u8[32] tmp;
+    memset(tmp.ptr, 0, 32);
+    _itoa_s(val, tmp.ptr, 32, 10);
+    strcat_s(MessageBuffer.ptr, 1024, memo);
+    strcat_s(MessageBuffer.ptr, 1024, tmp.ptr);
+    puts(MessageBuffer.ptr);
+}
+
+void printUint(u8* memo, u32 val) {
+    memset(MessageBuffer.ptr, 0, 1024);
+    u8[32] tmp;
+    memset(tmp.ptr, 0, 32);
+    _ultoa_s(val, tmp.ptr, 32, 10);
+    strcat_s(MessageBuffer.ptr, 1024, memo);
+    strcat_s(MessageBuffer.ptr, 1024, tmp.ptr);
+    puts(MessageBuffer.ptr);
+}
+
+void printDouble(u8* memo, f64 val) {
+    memset(MessageBuffer.ptr, 0, 1024);
+    u8[32] tmp;
+    memset(tmp.ptr, 0, 32);
+    _gcvt_s(tmp.ptr, 32, val, 12);
+    strcat_s(MessageBuffer.ptr, 1024, memo);
+    strcat_s(MessageBuffer.ptr, 1024, tmp.ptr);
+    puts(MessageBuffer.ptr);
+}
+
+void changeDirectory() {
+	u16* ptrWDir = tinyfd_selectFolderDialogW(null, tinyfd_mbcsTo16(ImagePath.ptr));
+	if (ptrWDir != null) {
+        memset(ImagePath.ptr, 0, 1024);
+	    strcat_s(ImagePath.ptr, 1024, tinyfd_utf16toMbcs(ptrWDir));
+	    // realease filepathlist
+	    if (fpl.count > 0) UnloadDirectoryFiles(fpl);
+	    // load filepathlist
+        fpl = LoadDirectoryFilesEx(ImagePath.ptr, ".png;.jpg", false);
+        // printUint("image count is = ", fpl.count);
+        //if (fpl.count > 0) {
+        //    puts(fpl.paths[0]);
+        //}
+    }
+}
+
+void loadFirstImage() {
+    if (fpl.count > 0) {
+        currentPos = 0;
+        if (tex.width > 0) UnloadTexture(tex);
+        tex = LoadTexture(fpl.paths[currentPos]);
+        offsetx = 0;
+        offsety = 0;
+    }
+}
+
+void prevImage() {
+    if (fpl.count > 0) {
+        if (currentPos > 0) {
+            currentPos = currentPos - 1;
+            if (tex.width > 0) UnloadTexture(tex);
+            tex = LoadTexture(fpl.paths[currentPos]);
+            offsetx = 0;
+            offsety = 0;
+        }
+    }
+}
+
+void nextImage() {
+    if (fpl.count > 0) {
+        if (currentPos < (fpl.count - 1)) {
+            currentPos = currentPos + 1;
+            if (tex.width > 0) UnloadTexture(tex);
+            tex = LoadTexture(fpl.paths[currentPos]);
+            offsetx = 0;
+            offsety = 0;
+        }
+    }    
+}
+
+void main() {
+    // init data
+    f64 lastsecond = GetTime();
+    bool bFix = false; 
+    memset(ImagePath.ptr, 0, 1024);
+    strcat_s(ImagePath.ptr, 1024, "D:");
+    
+    // init window
+    SetTraceLogLevel(4);
+	InitWindow(winWidth, winHeight, "Image viewer by raylib");
+	SetWindowState(4); // FLAG_WINDOW_RESIZABLE
+	SetTargetFPS(60);
+	
+	// main loop
+	while (WindowShouldClose() == 0) {
+	    // keyboard operation
+	    i32 nKeyPress = GetKeyPressed();
+	    switch (nKeyPress) {
+            65 { // KEY_A
+                prevImage();
+            }
+            68 { // KEY_D
+                nextImage();
+            }
+            70 { // KEY_F
+                ToggleFullscreen();
+            }
+            77 { // KEY_M
+                MaximizeWindow();
+            }
+            79 { // KEY_O
+                changeDirectory();
+                loadFirstImage();
+            }            
+            82 { // KEY_R
+                RestoreWindow();
+            }            
+            32 { // KEY_SPACE
+                if (bFix) {
+                    bFix = false;
+                } else {
+                    bFix = true;
+                } 
+            }            
+            else {}
+	    }
+	    // mouse operation
+        if (IsMouseButtonPressed(0) && !bFix) {
+            mmovex = GetMouseX();
+            mmovey = GetMouseY();
+            SetMouseCursor(9);
+        }
+        if (IsMouseButtonReleased(0) && !bFix) {
+            if ((mmovex > 0) && (mmovey > 0)) {
+                offsetx = offsetx + GetMouseX() - mmovex;
+                offsety = offsety + GetMouseY() - mmovey;
+            }
+            SetMouseCursor(0);
+        }
+        if (fpl.count > 0) {
+            f32 wheeloff = GetMouseWheelMove();
+            if (wheeloff > 0.0) {
+                f64 clockdelta = GetTime() - lastsecond;
+                lastsecond = GetTime();
+                if (clockdelta > 0.2) prevImage();
+            } else if (wheeloff < 0.0) {
+                f64 clockdelta = GetTime() - lastsecond;
+                lastsecond = GetTime();
+                if (clockdelta > 0.2) nextImage();
+            }
+        }
+	    // draw ui
+        winWidth = GetScreenWidth();
+        winHeight = GetScreenHeight();
+		BeginDrawing();
+		ClearBackground(clrBlack);
+		if (tex.width > 0) {
+		    if (bFix) {
+		        f32 fScale = cast(f32)winWidth / cast(f32)tex.width;
+                i32 newWidth = winWidth;
+                i32 newHeight = cast(i32)(cast(f32)tex.height * fScale);
+                if (newHeight > winHeight) {
+                    fScale = cast(f32)winHeight / cast(f32)tex.height;
+                    newHeight = winHeight;
+                    newWidth = cast(i32)(cast(f32)tex.width * fScale);
+                }
+                Vector2 iPos;
+                iPos.x = cast(f32)((winWidth-newWidth)/2);
+                iPos.y = cast(f32)((winHeight-newHeight)/2);
+                DrawTextureEx(tex, iPos, 0.0, fScale, clrWhite);
+		    } else {
+                DrawTexture(tex, (winWidth-tex.width)/2+offsetx, (winHeight-tex.height)/2+offsety, clrWhite);
+            }
+        } else {
+            DrawText("No image to show", 50, 50, 20, clrRed);
+            DrawText("A for prev image", 50, 80, 20, clrWhite);
+            DrawText("D for next image", 50, 110, 20, clrWhite);
+            DrawText("O for change folder", 50, 140, 20, clrWhite);
+            DrawText("F for toggle fullscreen", 50, 170, 20, clrWhite);
+            DrawText("M for maximize window", 50, 200, 20, clrWhite);
+            DrawText("R for restore window", 50, 230, 20, clrWhite);
+            DrawText("SPACE for toggle fix image size", 50, 260, 20, clrWhite);
+        }
+		EndDrawing();
+	}
+	if (tex.width > 0) UnloadTexture(tex);
+	CloseWindow();
+	
+	if (fpl.count > 0) UnloadDirectoryFiles(fpl);
+	ExitProcess(0);
+}
