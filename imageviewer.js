@@ -38,6 +38,7 @@ function main() {
     const ray_LoadImage = new FFI.CFunction(libr.symbol('LoadImage'), ImageT, [FFI.types.buffer]);
     const ray_UnloadImage = new FFI.CFunction(libr.symbol('UnloadImage'), FFI.types.void, [ImageT]);
     const ray_LoadTextureFromImage = new FFI.CFunction(libr.symbol('LoadTextureFromImage'), TextureT, [ImageT]);
+    const ray_LoadTexture = new FFI.CFunction(libr.symbol('LoadTexture'), TextureT, [FFI.types.buffer]);
     const ray_UnloadTexture = new FFI.CFunction(libr.symbol('UnloadTexture'), FFI.types.void, [TextureT]);
     const ray_DrawTexture = new FFI.CFunction(libr.symbol('DrawTexture'), FFI.types.void, [TextureT, FFI.types.sint, FFI.types.sint, FFI.types.uint32]);
     const ray_GetKeyPressed = new FFI.CFunction(libr.symbol('GetKeyPressed'), FFI.types.sint, []);
@@ -80,19 +81,61 @@ function main() {
     var mmovex = 0;
     var mmovey = 0;
     // image path and file list
-    var sDir = "D:\\Tools";
+    var sDir = "E:\\mycode\\tjs\\img"; //"D:\\Tools";
     var imglist = [];
     
     // init window
-    ray_SetTraceLogLevel.call(4);
-    ray_InitWindow.call(winWidth, winHeight, "Image explore using raylib");
+    //ray_SetTraceLogLevel.call(4);
+    ray_InitWindow.call(winWidth, winHeight, "Image viewer using raylib");
     ray_SetWindowState.call(FLAG_WINDOW_RESIZABLE);
     // load texture
     var bFix = false;
     var nPos = 0;
-    var bLoad = false;
-    var img = undefined;
     var tex = undefined;
+
+    function loadFirstImage() {
+        if (imglist.length > 0) {
+            nPos = 0;
+            if ((tex != undefined) && (tex.width > 0)) ray_UnloadTexture.call(tex);
+            // solve chinese path problem
+            let filenamebuf = new Uint8Array(2048);
+            fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
+            tex = ray_LoadTexture.call(filenamebuf);
+            offsetx = 0;
+            offsety = 0;
+        }
+    }
+    
+    function prevImage() {
+        if (imglist.length > 0) {
+            if (nPos>0) {
+                nPos--;
+                if ((tex != undefined) && (tex.width > 0)) ray_UnloadTexture.call(tex);
+                // solve chinese path problem
+                let filenamebuf = new Uint8Array(2048);
+                fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
+                tex = ray_LoadTexture.call(filenamebuf);
+                offsetx = 0;
+                offsety = 0;
+            }
+        }
+    }
+    
+    function nextImage() {
+        if (imglist.length > 0) {
+            if (nPos<(imglist.length-1)) {
+                nPos++;
+                if ((tex != undefined) && (tex.width > 0)) ray_UnloadTexture.call(tex);
+                // solve chinese path problem
+                let filenamebuf = new Uint8Array(2048);
+                fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
+                tex = ray_LoadTexture.call(filenamebuf);
+                offsetx = 0;
+                offsety = 0;
+            }
+        }
+    }
+
     // main loop
     while (!ray_WindowShouldClose.call()) {
         // move operation
@@ -112,42 +155,10 @@ function main() {
         let nKeyPress = ray_GetKeyPressed.call();
         switch (nKeyPress) {
             case KEY_A:
-                if (nPos>0) {
-                    nPos--;
-                    if (bLoad) {
-                        if (tex != undefined) ray_UnloadTexture.call(tex);
-                        if (img != undefined) ray_UnloadImage.call(img);
-                        bLoad = false;
-                    }
-                     // solve chinese path problem
-                    let filenamebuf = new Uint8Array(2048);
-                    fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
-                    // load prev image
-                    img = ray_LoadImage.call(filenamebuf);
-                    tex = ray_LoadTextureFromImage.call(img);
-                    offsetx = 0;
-					offsety = 0;
-                    bLoad = true;
-                }
+                prevImage();
                 break;
             case KEY_D:
-                if (nPos<(imglist.length-1)) {
-                    nPos++;
-                    if (bLoad) {
-                        if (tex != undefined) ray_UnloadTexture.call(tex);
-                        if (img != undefined) ray_UnloadImage.call(img);
-                        bLoad = false;
-                    }
-                     // solve chinese path problem
-                    let filenamebuf = new Uint8Array(2048);
-                    fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
-                    // load nex image
-                    img = ray_LoadImage.call(filenamebuf);
-                    tex = ray_LoadTextureFromImage.call(img);
-                    offsetx = 0;
-					offsety = 0;
-                    bLoad = true;
-                }
+                nextImage();
                 break;
             case KEY_F:
                 ray_ToggleFullscreen.call();
@@ -156,6 +167,7 @@ function main() {
                 ray_MaximizeWindow.call();
                 break;
             case KEY_O:
+                // change directory
                 let sSelDir = fd_findImageFile.call(sDir);
                 if (sSelDir != "") {
                     let parts = sSelDir.split(";");
@@ -168,23 +180,7 @@ function main() {
                                 imglist.push(sTmp);
                             }
                         }
-                        //console.log(imglist);
-                        if (imglist.length>0) {
-                            if (bLoad) {
-                                if (tex != undefined) ray_UnloadTexture.call(tex);
-                                if (img != undefined) ray_UnloadImage.call(img);
-                                bLoad = false;
-                            }
-                            // solve chinese path problem
-                            let filenamebuf = new Uint8Array(2048);
-                            fd_utf8ToU16Char.call(imglist[0], filenamebuf);
-                            // load first image
-                            img = ray_LoadImage.call(filenamebuf);
-                            tex = ray_LoadTextureFromImage.call(img);
-                            offsetx = 0;
-                            offsety = 0;
-                            bLoad = true;
-                        }
+                        loadFirstImage();
                     }
                 }
                 break;
@@ -209,55 +205,23 @@ function main() {
                 lastsecond = Date.now();
                 if (clockdelta > 200) {
                     //println("wheel up, prev image:"+to_string(clockdelta));
-                    if (nPos>0) {
-                        nPos--;
-                        if (bLoad) {
-                            if (tex != undefined) ray_UnloadTexture.call(tex);
-                            if (img != undefined) ray_UnloadImage.call(img);
-                            bLoad = false;
-                        }
-                         // solve chinese path problem
-                        let filenamebuf = new Uint8Array(2048);
-                        fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
-                        // load prev image
-                        img = ray_LoadImage.call(filenamebuf);
-                        tex = ray_LoadTextureFromImage.call(img);
-                        offsetx = 0;
-                        offsety = 0;
-                        bLoad = true;
-                    }
+                    prevImage();
                 }
             } else if (wheeloff<0) {
                 let clockdelta = Date.now() - lastsecond;
                 lastsecond = Date.now();
                 if (clockdelta > 200) {
                     //println("wheel down, next image:"+to_string(clockdelta));
-                    if (nPos<(imglist.length-1)) {
-                        nPos++;
-                        if (bLoad) {
-                            if (tex != undefined) ray_UnloadTexture.call(tex);
-                            if (img != undefined) ray_UnloadImage.call(img);
-                            bLoad = false;
-                        }
-                         // solve chinese path problem
-                        let filenamebuf = new Uint8Array(2048);
-                        fd_utf8ToU16Char.call(imglist[nPos], filenamebuf);
-                        // load nex image
-                        img = ray_LoadImage.call(filenamebuf);
-                        tex = ray_LoadTextureFromImage.call(img);
-                        offsetx = 0;
-                        offsety = 0;
-                        bLoad = true;
-                    }
+                    nextImage();
                 }
-            }            
+            }
         }
         // draw ui
         let winWidth = ray_GetScreenWidth.call();
         let winHeight = ray_GetScreenHeight.call();
         ray_BeginDrawing.call();
         ray_ClearBackground.call(clrBlack);
-        if ((bLoad) && (tex != undefined)) {
+        if ((tex != undefined) && (tex.width > 0)) {
             if (bFix) {
                 let fScale = winWidth / tex.width;
                 let newWidth = winWidth;
@@ -286,10 +250,10 @@ function main() {
         ray_EndDrawing.call();
     }
     // free resource
-    if (bLoad) {
-        if (tex != undefined) ray_UnloadTexture.call(tex);
-        if (img != undefined) ray_UnloadImage.call(img);
+    if ((tex != undefined) && (tex.width > 0)) {
+        ray_UnloadTexture.call(tex);
     }
+
     // close window
     ray_CloseWindow.call();
 }
