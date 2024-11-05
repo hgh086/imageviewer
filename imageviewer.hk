@@ -1,0 +1,230 @@
+import os;
+import ray;
+import math;
+import dirop;
+import strings;
+
+// time
+var lastsecond = os.clock();
+// list directory
+var imglist = [];
+var nPos = 0;
+var imagepath = "D:\Tools";
+// control variant
+var bFix = false;
+var offsetx = 0;
+var offsety = 0;
+var mmovex = 0;
+var mmovey = 0;
+// load texture
+var bLoad = false;
+var img = nil;
+var tex = nil;
+
+fn changepath(oldpath) {
+	let seldir = dirop.PickFolder(oldpath);
+	if (seldir == nil) {
+		println("No folder selected, exit.");
+		exit(1);
+	}
+	let flist = dirop.ListFiles(seldir);
+	if (flist == nil) {
+		println("List directory failed, exit.");
+		exit(1);
+	}
+	var retlist = [];
+	foreach (fname in flist) {
+		if (strings.ends_with(fname, ".png") || strings.ends_with(fname, ".jpg")) {
+			retlist[] =  seldir + "\" + fname;
+		}
+	}
+	return [seldir, retlist];
+}
+
+let InitWidth = 1920;
+let InitHeight = 1080;
+let KEY_SPACE = 32;
+let KEY_A = 65;
+let KEY_D = 68;
+let KEY_F = 70;
+let KEY_M = 77;
+let KEY_O = 79;
+let KEY_R = 82;
+let FLAG_WINDOW_RESIZABLE = 4;
+
+ray.InitWindow(InitWidth, InitHeight, "Image explore using raylib");
+ray.SetTraceLogLevel(4); // LOG_WARNING
+ray.SetWindowState(FLAG_WINDOW_RESIZABLE);
+ray.SetTargetFPS(60);
+
+// main loop
+while( !ray.WindowShouldClose()) {
+	// move operation
+	if (ray.IsMouseButtonPressed(0) && !bFix) {
+		mmovex = ray.GetMouseX();
+		mmovey = ray.GetMouseY();
+		ray.SetMouseCursor(9);
+	}
+	if (ray.IsMouseButtonReleased(0) && !bFix) {
+		if ((mmovex>0) && (mmovey>0)) {
+			offsetx += ray.GetMouseX() - mmovex;
+			offsety += ray.GetMouseY() - mmovey;
+			//println(to_string(offsetx) + "-" + to_string(offsety));
+		}
+		ray.SetMouseCursor(0);
+	}
+	// keyboard operation
+	var nKeyPress = ray.GetKeyPressed();
+	match (nKeyPress) {
+		KEY_A => {
+			// prev image
+			if (nPos>0) {
+				nPos--;
+				if (bLoad) {
+					if (tex != nil) ray.UnloadTexture(tex);
+					if (img != nil) ray.UnloadImage(img);
+					bLoad = false;
+				}
+                img = ray.LoadImage(imglist[nPos]);
+                tex = ray.LoadTextureFromImage(img);
+                offsetx = 0;
+                offsety = 0;
+                bLoad = true;
+			}
+		}
+		KEY_D => {
+			// next image
+			if (nPos<(len(imglist)-1)) {
+				nPos++;
+				if (bLoad) {
+					if (tex != nil) ray.UnloadTexture(tex);
+					if (img != nil) ray.UnloadImage(img);
+					bLoad = false;
+				}
+                img = ray.LoadImage(imglist[nPos]);
+                tex = ray.LoadTextureFromImage(img);
+                offsetx = 0;
+                offsety = 0;
+                bLoad = true;				
+			}
+		}
+		KEY_F => {
+			ray.ToggleFullscreen();
+		}
+		KEY_M => {
+			ray.MaximizeWindow();
+		}
+		KEY_O => {
+			let rets = changepath(imagepath);
+			if (len(rets[1])>0) {
+				//println(rets[1]);
+				imagepath = rets[0];
+				imglist = [];
+				foreach (ff in rets[1]) {
+					imglist[] = ff;
+				}
+				nPos = 0;
+				if (bLoad) {
+					if (tex != nil) ray.UnloadTexture(tex);
+					if (img != nil) ray.UnloadImage(img);
+					bLoad = false;
+				}		
+				img = ray.LoadImage(imglist[0]);
+				tex = ray.LoadTextureFromImage(img);
+                offsetx = 0;
+                offsety = 0;
+				bLoad = true;
+			}
+		}		
+		KEY_R => {
+			ray.RestoreWindow();
+		}
+		KEY_SPACE => {
+			if (bFix) {
+				bFix = false;
+			} else {
+				bFix = true;
+			}
+		}
+	}
+	// mouse operation
+	if (len(imglist)>0) {
+		let wheeloff = ray.GetMouseWheelMove();
+		if (wheeloff>0) {
+			let clockdelta = os.clock() - lastsecond;
+			lastsecond = os.clock();
+			if (clockdelta > 0.2) {
+				//println("wheel up, prev image:"+to_string(clockdelta));
+				if (nPos>0) {
+					nPos--;
+					if (bLoad) {
+						if (tex != nil) ray.UnloadTexture(tex);
+						if (img != nil) ray.UnloadImage(img);
+						bLoad = false;
+					}
+					img = ray.LoadImage(imglist[nPos]);
+					tex = ray.LoadTextureFromImage(img);
+					offsetx = 0;
+					offsety = 0;
+					bLoad = true;
+				}
+			}
+		} else if (wheeloff<0) {
+			let clockdelta = os.clock() - lastsecond;
+			lastsecond = os.clock();
+			if (clockdelta > 0.2) {
+				//println("wheel down, next image:"+to_string(clockdelta));
+				if (nPos<(len(imglist)-1)) {
+					nPos++;
+					if (bLoad) {
+						if (tex != nil) ray.UnloadTexture(tex);
+						if (img != nil) ray.UnloadImage(img);
+						bLoad = false;
+					}
+					img = ray.LoadImage(imglist[nPos]);
+					tex = ray.LoadTextureFromImage(img);
+					offsetx = 0;
+					offsety = 0;
+					bLoad = true;				
+				}
+			}
+		}
+	}
+	// draw
+	let winWidth = ray.GetScreenWidth();
+	let winHeight = ray.GetScreenHeight();
+	ray.BeginDrawing();
+	ray.ClearBackground(0, 0, 0, 255); // color:rgba
+	if ((bLoad) && (tex != nil)) {
+		let [texw, texh] = ray.GetTextureSize(tex);
+		if (bFix) {
+			var fScale = winWidth / texw;
+			var newWidth = winWidth;
+			var newHeight = texh * fScale;
+			if (newHeight > winHeight) {
+				fScale = winHeight / texh;
+				newHeight = winHeight;
+				newWidth = texw * fScale;
+			}
+			ray.DrawTextureEx(tex, math.round((winWidth-newWidth)/2), math.round((winHeight-newHeight)/2), 0, fScale, 255, 255, 255, 255);
+		} else {
+			ray.DrawTexture(tex, math.round((winWidth-texw)/2) + offsetx, math.round((winHeight-texh)/2) + offsety, 255, 255, 255, 255);
+		}
+	} else {
+		ray.DrawText("No image to show", 50, 50, 20, 255, 255, 255, 255);
+		ray.DrawText("A for prev image", 50, 80, 20, 255, 255, 255, 255);
+		ray.DrawText("D for next image", 50, 110, 20, 255, 255, 255, 255);
+		ray.DrawText("O for change folder", 50, 140, 20, 255, 255, 255, 255);
+		ray.DrawText("F for toggle fullscreen", 50, 170, 20, 255, 255, 255, 255);
+		ray.DrawText("M for maximize window", 50, 200, 20, 255, 255, 255, 255);
+		ray.DrawText("R for restore window", 50, 230, 20, 255, 255, 255, 255);
+		ray.DrawText("SPACE for toggle fix image size", 50, 260, 20, 255, 255, 255, 255);
+	}
+	ray.EndDrawing();
+}
+if (bLoad) {
+	if (tex != nil) ray.UnloadTexture(tex);
+	if (img != nil) ray.UnloadImage(img);
+	bLoad = false;
+}
+ray.CloseWindow();
