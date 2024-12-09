@@ -27,7 +27,7 @@ imagelist : [dynamic]string
 changeDirectory :: proc(s:Symbols) {
 	sb1 := strings.builder_make()
 	strings.write_string(&sb1, imagepath)
-	strImages := string(s.findImageFile(strings.to_cstring(&sb1)))
+	strImages := string(s.findImageFile(s.utf8toMbcs(strings.to_cstring(&sb1))))
 	parts := strings.split(strImages, ";")
 	if (len(parts) > 1) {
 		clear(&imagelist)
@@ -95,7 +95,7 @@ main :: proc() {
     bFix :bool = false
     
     //rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
-	rl.InitWindow(winWidth, winHeight, "hello raylib")
+	rl.InitWindow(winWidth, winHeight, "Ray image viewer")
 	wndstst := rl.ConfigFlags {rl.ConfigFlag.WINDOW_RESIZABLE, rl.ConfigFlag.WINDOW_TOPMOST}
 	rl.SetWindowState(wndstst)
 	rl.SetTargetFPS(60)
