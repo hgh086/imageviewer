@@ -277,7 +277,7 @@ while (raylib.symbols.WindowShouldClose() == 0) {
         if (bFix) {
             let fScale = winWidth / texWidth;
             let newWidth = winWidth;
-            let newHeight = texWidth * fScale;
+            let newHeight = texHeight * fScale;
             if (newHeight > winHeight) {
                 // change scale
                 fScale = winHeight / texHeight;
