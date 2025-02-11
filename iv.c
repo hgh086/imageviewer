@@ -20,10 +20,29 @@ int offsetx = 0;
 int offsety = 0;
 int mmovex = 0;
 int mmovey = 0;
-// image and texture
-bool bLoad = false;
-Image img = {0};
+// texture
 Texture2D tex = {0};
+
+void changeImage() {
+    // nPos invalid
+    if ((nPos < 0) || (nPos >= fplist.count)) return;
+    if (tex.width > 0) {
+        // free texture
+        UnloadTexture(tex);
+        tex.id = 0;
+        tex.width = 0;
+        tex.height = 0;
+        tex.mipmaps = 0;
+        tex.format = 0;
+    }
+    memset(ImageFile, 0, MAX_PATH_SIZE*2);
+    strcpy(ImageFile, ImagePath);
+    strcpy(ImageFile, "\\");
+    strcpy(ImageFile, fplist.paths[nPos]);
+    tex = LoadTexture(ImageFile);
+    offsetx = 0;
+    offsety = 0;
+}
 
 int main()
 {
@@ -40,19 +59,6 @@ int main()
     
     while (!WindowShouldClose())
     {
-        // mouse operation
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !bFix) {
-            mmovex = GetMouseX();
-            mmovey = GetMouseY();
-            SetMouseCursor(MOUSE_CURSOR_RESIZE_ALL);
-        }
-        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && !bFix) {
-            if ((mmovex>0) && (mmovey>0)) {
-                offsetx += GetMouseX() - mmovex;
-                offsety += GetMouseY() - mmovey;
-            }
-            SetMouseCursor(MOUSE_CURSOR_DEFAULT);
-        }
         // keyboard operation
         int nKeyPress = GetKeyPressed();
         switch(nKeyPress) {
@@ -60,42 +66,14 @@ int main()
                 // prev image
                 if (nPos>0) {
                     nPos--;
-                    if (bLoad) {
-                        UnloadTexture(tex);
-                        UnloadImage(img);
-                        bLoad = false;
-                    }
-                    memset(ImageFile, 0, MAX_PATH_SIZE*2);
-                    strcpy(ImageFile, ImagePath);
-                    strcpy(ImageFile, "\\");
-                    strcpy(ImageFile, fplist.paths[nPos]);
-                    //printf("open file: %s\n", ImageFile);
-                    img = LoadImage(ImageFile);
-                    tex = LoadTextureFromImage(img);
-                    offsetx = 0;
-                    offsety = 0;
-                    bLoad = true;
+                    changeImage();
                 }
                 break;
             case KEY_D:
                 // next image
                 if (nPos<(fplist.count-1)) {
                     nPos++;
-                    if (bLoad) {
-                        UnloadTexture(tex);
-                        UnloadImage(img);
-                        bLoad = false;
-                    }
-                    memset(ImageFile, 0, MAX_PATH_SIZE*2);
-                    strcpy(ImageFile, ImagePath);
-                    strcpy(ImageFile, "\\");
-                    strcpy(ImageFile, fplist.paths[nPos]);
-                    //printf("open file: %s\n", ImageFile);
-                    img = LoadImage(ImageFile);
-                    tex = LoadTextureFromImage(img);
-                    offsetx = 0;
-                    offsety = 0;
-                    bLoad = true;
+                    changeImage();
                 }
                 break;
             case KEY_F:
@@ -106,40 +84,22 @@ int main()
                 break;
             case KEY_O:
                 // select folder
-                // char* sTmp = tinyfd_selectFolderDialog("Select folder", ImagePath);
                 wchar_t* wsImagePath = tinyfd_mbcsTo16(ImagePath);
                 wchar_t* wsTmp = tinyfd_selectFolderDialogW(L"Select folder", wsImagePath); // use widechar
                 if (NULL != wsTmp) {
                     char* sTmp = tinyfd_utf16toMbcs(wsTmp); // convert to gbk? succeed!
                     memset(ImagePath, 0, MAX_PATH_SIZE);
                     strcpy(ImagePath, sTmp);
-                    //printf("select dir: %s\n", ImagePath);
                     // unload Filepaths
                     if (fplist.count > 0) {
                         UnloadDirectoryFiles(fplist);
                     }
                     // load new Filepaths
                     fplist = LoadDirectoryFilesEx(ImagePath, ".png;.jpg", false);
-                    //for (int i=0;i<fplist.count;i++) {
-                    //    printf("%s\n", fplist.paths[i]);
-                    //}
                     // load first image
                     if (fplist.count > 0) {
                         nPos = 0;
-                        if (bLoad) {
-                            UnloadTexture(tex);
-                            UnloadImage(img);
-                        }
-                        memset(ImageFile, 0, MAX_PATH_SIZE*2);
-                        strcpy(ImageFile, ImagePath);
-                        strcpy(ImageFile, "\\");
-                        strcpy(ImageFile, fplist.paths[0]);
-                        //printf("open file: %s\n", ImageFile);
-                        img = LoadImage(ImageFile);
-                        tex = LoadTextureFromImage(img);
-                        offsetx = 0;
-                        offsety = 0;
-                        bLoad = true;
+                        changeImage();
                     }
                 }
                 break;
@@ -147,14 +107,25 @@ int main()
                 RestoreWindow();
                 break;
             case KEY_SPACE:
-                if (bFix) {
-                    bFix = false;
-                } else {
-                    bFix = true;
-                }
+                bFix = !bFix;
                 break;
             default:
                 break;
+        }
+        // mouse operation
+        if (tex.width > 0) {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !bFix) {
+                mmovex = GetMouseX();
+                mmovey = GetMouseY();
+                SetMouseCursor(MOUSE_CURSOR_RESIZE_ALL);
+            }
+            if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && !bFix) {
+                if ((mmovex>0) && (mmovey>0)) {
+                    offsetx += GetMouseX() - mmovex;
+                    offsety += GetMouseY() - mmovey;
+                }
+                SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+            }
         }
         // mouse wheel
         if (fplist.count > 0) {
@@ -162,47 +133,21 @@ int main()
             if (wheeloff>0) {
                 double clockdelta = GetTime() - lastsecond;
                 lastsecond = GetTime();
-                if (clockdelta > 0.2) {
+                if (clockdelta > 0.15) {
                     // wheel up, prev image
                     if (nPos>0) {
                         nPos--;
-                        if (bLoad) {
-                            UnloadTexture(tex);
-                            UnloadImage(img);
-                            bLoad = false;
-                        }
-                        memset(ImageFile, 0, MAX_PATH_SIZE*2);
-                        strcpy(ImageFile, ImagePath);
-                        strcpy(ImageFile, "\\");
-                        strcpy(ImageFile, fplist.paths[nPos]);
-                        img = LoadImage(ImageFile);
-                        tex = LoadTextureFromImage(img);
-                        offsetx = 0;
-                        offsety = 0;
-                        bLoad = true;
+                        changeImage();
                     }
                 }
             } else if (wheeloff<0) {
                 double clockdelta = GetTime() - lastsecond;
                 lastsecond = GetTime();
-                if (clockdelta > 0.2) {
+                if (clockdelta > 0.15) {
                     // wheel down, next image
                     if (nPos<(fplist.count-1)) {
                         nPos++;
-                        if (bLoad) {
-                            UnloadTexture(tex);
-                            UnloadImage(img);
-                            bLoad = false;
-                        }
-                        memset(ImageFile, 0, MAX_PATH_SIZE*2);
-                        strcpy(ImageFile, ImagePath);
-                        strcpy(ImageFile, "\\");
-                        strcpy(ImageFile, fplist.paths[nPos]);
-                        img = LoadImage(ImageFile);
-                        tex = LoadTextureFromImage(img);
-                        offsetx = 0;
-                        offsety = 0;
-                        bLoad = true;
+                        changeImage();
                     }
                 }
             }
@@ -212,7 +157,7 @@ int main()
         int winHeight = GetScreenHeight();
         BeginDrawing();
         ClearBackground(BLACK);
-        if (bLoad) {
+        if (tex.width > 0) {
             // draw image
             if (bFix) {
                 float fScale = ((float)winWidth) / ((float)tex.width);
@@ -230,7 +175,7 @@ int main()
             }
         } else {
             // prompt
-            DrawText("No image to show", 50, 50, 20, RAYWHITE);
+            DrawText("No image to show", 50, 50, 20, RED);
             DrawText("A for prev image", 50, 80, 20, RAYWHITE);
             DrawText("D for next image", 50, 110, 20, RAYWHITE);
             DrawText("O for change folder", 50, 140, 20, RAYWHITE);
@@ -241,10 +186,9 @@ int main()
         }
         EndDrawing();
     }
-    if (bLoad) {
+    if (tex.width > 0) {
+        // free texture
         UnloadTexture(tex);
-        UnloadImage(img);
-        bLoad = false;
     }
     CloseWindow();
     return 0;
